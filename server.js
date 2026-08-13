@@ -1,6 +1,6 @@
 // ==========================================
 // Digital Notice Board - Express Backend Server
-// Security & Validation Enhanced
+// Vercel Serverless & Security Enhanced
 // ==========================================
 
 const express = require('express');
@@ -11,7 +11,10 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const DATA_FILE = path.join(__dirname, 'notices.json');
+
+// Determine storage path (Use /tmp on Vercel serverless environment)
+const isVercel = Boolean(process.env.VERCEL);
+const DATA_FILE = isVercel ? path.join('/tmp', 'notices.json') : path.join(__dirname, 'notices.json');
 
 // Admin Passkey & Security State
 const ADMIN_PASSCODE = process.env.ADMIN_PASSCODE || 'admin123';
@@ -32,12 +35,26 @@ app.use(express.json());
 // Serve static frontend files from 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Helper function to initialize data file (seeds /tmp on Vercel)
+function ensureDataFile() {
+  try {
+    if (!fs.existsSync(DATA_FILE)) {
+      const seedPath = path.join(__dirname, 'notices.json');
+      let seedContent = '[]';
+      if (fs.existsSync(seedPath)) {
+        seedContent = fs.readFileSync(seedPath, 'utf8');
+      }
+      fs.writeFileSync(DATA_FILE, seedContent, 'utf8');
+    }
+  } catch (error) {
+    console.error('Error ensuring data file:', error);
+  }
+}
+
 // Helper function to read notices from JSON file
 function readNotices() {
   try {
-    if (!fs.existsSync(DATA_FILE)) {
-      fs.writeFileSync(DATA_FILE, JSON.stringify([], null, 2));
-    }
+    ensureDataFile();
     const data = fs.readFileSync(DATA_FILE, 'utf8');
     return JSON.parse(data || '[]');
   } catch (error) {
@@ -49,6 +66,7 @@ function readNotices() {
 // Helper function to write notices to JSON file
 function writeNotices(notices) {
   try {
+    ensureDataFile();
     fs.writeFileSync(DATA_FILE, JSON.stringify(notices, null, 2), 'utf8');
   } catch (error) {
     console.error('Error writing notices file:', error);
@@ -241,10 +259,15 @@ app.delete('/api/notices/:id', requireAdminAuth, (req, res) => {
   res.json({ message: 'Notice deleted successfully', id });
 });
 
-// Start Server
-app.listen(PORT, () => {
-  console.log(`===================================================`);
-  console.log(` Digital Notice Board backend running on port ${PORT}`);
-  console.log(` Access UI at: http://localhost:${PORT}`);
-  console.log(`===================================================`);
-});
+// Start Server locally if not running as serverless export
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`===================================================`);
+    console.log(` Digital Notice Board backend running on port ${PORT}`);
+    console.log(` Access UI at: http://localhost:${PORT}`);
+    console.log(`===================================================`);
+  });
+}
+
+// Export Express app for Vercel Serverless Function
+module.exports = app;
