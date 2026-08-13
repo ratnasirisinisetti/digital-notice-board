@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Campus Pulse | Digital Notice Board</title>
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- CSS Styles -->
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- Background Glow Accents -->
+  <div class="bg-blur bg-blur-1"></div>
+  <div class="bg-blur bg-blur-2"></div>
+
+  <div class="app-container">
+    <!-- Navbar Header -->
+    <header class="navbar">
+      <div class="brand">
+        <div class="logo-icon">📢</div>
+        <div class="brand-text">
+          <h1>Campus Pulse</h1>
+          <p class="subtitle">Digital Notice Board</p>
+        </div>
+      </div>
+
+      <!-- Header Actions / Mode Switch -->
+      <div class="nav-controls">
+        <div class="mode-badge" id="modeBadge">
+          <span class="dot"></span>
+          <span id="modeText">Student View</span>
+        </div>
+
+        <button class="btn btn-outline" id="toggleAdminBtn">
+          <span id="adminBtnIcon">🔐</span>
+          <span id="adminBtnText">Admin Mode</span>
+        </button>
+
+        <button class="btn btn-primary hidden" id="addNoticeBtn">
+          <span>➕</span> Post Notice
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Search & Filters Toolbar -->
+      <section class="toolbar-section">
+        <!-- Search input -->
+        <div class="search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="searchInput" placeholder="Search notices by keyword..." autocomplete="off">
+          <button class="clear-search hidden" id="clearSearchBtn">&times;</button>
+        </div>
+
+        <!-- Filter Pill Chips -->
+        <div class="filter-chips" id="filterChips">
+          <button class="chip active" data-category="ALL">All Notices</button>
+          <button class="chip" data-category="Exam">📑 Exam</button>
+          <button class="chip" data-category="Event">🎉 Event</button>
+          <button class="chip" data-category="General">📌 General</button>
+          <button class="chip" data-category="Urgent">🚨 Urgent</button>
+        </div>
+      </section>
+
+      <!-- Active Filter Status Bar -->
+      <div class="feed-status">
+        <span id="resultsCount">Loading notices...</span>
+        <span class="live-indicator">⚡ Live Updates</span>
+      </div>
+
+      <!-- Notice List Container -->
+      <section class="notice-grid" id="noticeGrid">
+        <!-- Skeleton loaders rendered by JS -->
+      </section>
+
+      <!-- Empty State -->
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">📭</div>
+        <h3>No notices found</h3>
+        <p>Try adjusting your search query or selected category filter.</p>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="app-footer">
+      <p>Campus Pulse &bull; Digital Notice Board for College Hackathon</p>
+    </footer>
+  </div>
+
+  <!-- Modal for Creating/Editing Notices -->
+  <div class="modal-overlay hidden" id="noticeModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h2 id="modalTitle">Post New Announcement</h2>
+        <button class="close-btn" id="closeModalBtn">&times;</button>
+      </div>
+
+      <form id="noticeForm">
+        <input type="hidden" id="noticeId">
+
+        <div class="form-group">
+          <label for="noticeTitleInput">Announcement Title *</label>
+          <input type="text" id="noticeTitleInput" placeholder="e.g. Mid-Term Examination Schedule" required>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="noticeCategorySelect">Category *</label>
+            <select id="noticeCategorySelect" required>
+              <option value="Exam">Exam 📑</option>
+              <option value="Event">Event 🎉</option>
+              <option value="General" selected>General 📌</option>
+              <option value="Urgent">Urgent 🚨</option>
+            </select>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label class="checkbox-label" for="noticeUrgentCheck">
+              <input type="checkbox" id="noticeUrgentCheck">
+              <span>Mark as Urgent Notice</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="noticeDescInput">Description / Details *</label>
+          <textarea id="noticeDescInput" rows="4" placeholder="Enter all relevant details, links, or instructions..." required></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveNoticeBtn">Publish Notice</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Password Prompt Modal -->
+  <div class="modal-overlay hidden" id="passwordModal">
+    <div class="modal-card small-modal">
+      <div class="modal-header">
+        <h2>Admin Authentication</h2>
+        <button class="close-btn" id="closePasswordModalBtn">&times;</button>
+      </div>
+      <form id="passwordForm">
+        <div class="form-group">
+          <label for="adminPasswordInput">Enter Admin Passcode</label>
+          <input type="password" id="adminPasswordInput" placeholder="Passcode (Default: admin123)" required>
+          <p class="form-help">Hint: Passcode is <code>admin123</code></p>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="cancelPasswordBtn">Cancel</button>
+          <button type="submit" class="btn btn-primary">Verify & Unlock</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JS Logic -->
+  <script src="app.js"></script>
+</body>
+</html>
