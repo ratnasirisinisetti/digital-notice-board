@@ -1,5 +1,6 @@
 // ==========================================
 // Campus Pulse - Digital Notice Board Logic
+// Security & Validation Enhanced
 // ==========================================
 
 // Global Application State
@@ -7,9 +8,7 @@ let notices = [];
 let selectedCategory = 'ALL';
 let searchQuery = '';
 let isAdminMode = false;
-let editingNoticeId = null;
-
-const ADMIN_PASSCODE = 'admin123';
+let adminToken = null;
 
 // DOM Elements
 const noticeGrid = document.getElementById('noticeGrid');
@@ -38,6 +37,7 @@ const noticeUrgentCheck = document.getElementById('noticeUrgentCheck');
 const noticeDescInput = document.getElementById('noticeDescInput');
 const closeModalBtn = document.getElementById('closeModalBtn');
 const cancelModalBtn = document.getElementById('cancelModalBtn');
+const modalErrorAlert = document.getElementById('modalErrorAlert');
 
 // Password Modal Elements
 const passwordModal = document.getElementById('passwordModal');
@@ -45,6 +45,8 @@ const passwordForm = document.getElementById('passwordForm');
 const adminPasswordInput = document.getElementById('adminPasswordInput');
 const closePasswordModalBtn = document.getElementById('closePasswordModalBtn');
 const cancelPasswordBtn = document.getElementById('cancelPasswordBtn');
+const passwordErrorAlert = document.getElementById('passwordErrorAlert');
+const verifyPasswordBtn = document.getElementById('verifyPasswordBtn');
 
 // ==========================================
 // Initialization & Event Listeners
@@ -85,10 +87,8 @@ function setupEventListeners() {
   // Admin Mode Toggle
   toggleAdminBtn.addEventListener('click', () => {
     if (isAdminMode) {
-      // Disable Admin Mode
       setAdminMode(false);
     } else {
-      // Open Passcode Modal
       openPasswordModal();
     }
   });
@@ -134,9 +134,50 @@ async function fetchNotices() {
   }
 }
 
-// Handle Form Submission (Create or Update)
+// Handle Admin Passcode Verification (Server-Side Check & Lockout)
+async function handlePasswordSubmit(e) {
+  e.preventDefault();
+  const inputPass = adminPasswordInput.value.trim();
+
+  if (!inputPass) {
+    showPasswordError('Please enter the admin passcode.');
+    return;
+  }
+
+  hidePasswordError();
+  verifyPasswordBtn.disabled = true;
+  verifyPasswordBtn.textContent = 'Verifying...';
+
+  try {
+    const response = await fetch('/api/admin/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ passcode: inputPass })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      showPasswordError(data.error || 'Authentication failed.');
+      return;
+    }
+
+    // Success! Store server admin token
+    adminToken = data.token;
+    setAdminMode(true);
+    closePasswordModal();
+  } catch (error) {
+    showPasswordError('Server connection error. Please try again.');
+  } finally {
+    verifyPasswordBtn.disabled = false;
+    verifyPasswordBtn.textContent = 'Verify & Unlock';
+  }
+}
+
+// Handle Form Submission (Create or Update with Validation)
 async function handleSaveNotice(e) {
   e.preventDefault();
+  hideModalError();
 
   const title = noticeTitleInput.value.trim();
   const category = noticeCategorySelect.value;
@@ -144,9 +185,24 @@ async function handleSaveNotice(e) {
   const description = noticeDescInput.value.trim();
   const id = noticeId.value;
 
-  if (!title || !description || !category) return;
+  // Client-Side Input Validation
+  if (!title) {
+    showModalError('Title cannot be empty or contain only whitespace.');
+    noticeTitleInput.focus();
+    return;
+  }
+
+  if (!description) {
+    showModalError('Description cannot be empty or contain only whitespace.');
+    noticeDescInput.focus();
+    return;
+  }
 
   const payload = { title, category, isUrgent, description };
+  const headers = {
+    'Content-Type': 'application/json',
+    'x-admin-token': adminToken || ''
+  };
 
   try {
     let response;
@@ -154,36 +210,50 @@ async function handleSaveNotice(e) {
       // Update existing notice
       response = await fetch(`/api/notices/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       });
     } else {
       // Create new notice
       response = await fetch('/api/notices', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       });
     }
 
-    if (!response.ok) throw new Error('Failed to save notice');
+    const data = await response.json();
+
+    if (!response.ok) {
+      showModalError(data.error || 'Failed to save notice.');
+      return;
+    }
 
     closeNoticeModal();
     await fetchNotices();
   } catch (error) {
-    alert('Error saving notice: ' + error.message);
+    showModalError('Error saving notice: ' + error.message);
   }
 }
 
-// Delete a Notice
+// Delete a Notice (Server Authorized)
 async function deleteNotice(id) {
   if (!confirm('Are you sure you want to delete this notice?')) return;
 
   try {
     const response = await fetch(`/api/notices/${id}`, {
-      method: 'DELETE'
+      method: 'DELETE',
+      headers: {
+        'x-admin-token': adminToken || ''
+      }
     });
-    if (!response.ok) throw new Error('Failed to delete notice');
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      alert('Delete failed: ' + (data.error || 'Unauthorized'));
+      return;
+    }
 
     await fetchNotices();
   } catch (error) {
@@ -200,7 +270,7 @@ function editNotice(id) {
 }
 
 // ==========================================
-// UI Rendering Logic
+// UI Rendering Logic & Sanitization
 // ==========================================
 
 function renderNotices() {
@@ -229,11 +299,13 @@ function renderNotices() {
 
   emptyState.classList.add('hidden');
 
-  // Render Grid Cards
+  // Render Grid Cards with XSS-safe escaping
   noticeGrid.innerHTML = filtered
     .map((notice) => {
       const formattedDate = formatDate(notice.timestamp);
       const isUrgentClass = notice.isUrgent ? 'urgent-card' : '';
+      const safeTitle = escapeHtml(notice.title);
+      const safeDescription = escapeHtml(notice.description);
 
       return `
         <article class="notice-card ${isUrgentClass}">
@@ -245,8 +317,8 @@ function renderNotices() {
             <span class="timestamp">${formattedDate}</span>
           </div>
 
-          <h3 class="notice-title">${escapeHtml(notice.title)}</h3>
-          <p class="notice-body">${escapeHtml(notice.description)}</p>
+          <h3 class="notice-title">${safeTitle}</h3>
+          <p class="notice-body">${safeDescription}</p>
 
           <div class="notice-footer">
             <span class="timestamp">Posted by Campus Admin</span>
@@ -268,33 +340,25 @@ function renderNotices() {
 }
 
 // ==========================================
-// Admin Mode & Modal Handlers
+// Admin Mode & Modal Helpers
 // ==========================================
 
 function openPasswordModal() {
   adminPasswordInput.value = '';
+  hidePasswordError();
   passwordModal.classList.remove('hidden');
   adminPasswordInput.focus();
 }
 
 function closePasswordModal() {
   passwordModal.classList.add('hidden');
-}
-
-function handlePasswordSubmit(e) {
-  e.preventDefault();
-  const inputPass = adminPasswordInput.value;
-
-  if (inputPass === ADMIN_PASSCODE) {
-    setAdminMode(true);
-    closePasswordModal();
-  } else {
-    alert('Incorrect passcode! Default passcode is: admin123');
-  }
+  hidePasswordError();
 }
 
 function setAdminMode(enabled) {
   isAdminMode = enabled;
+  if (!enabled) adminToken = null;
+
   if (enabled) {
     modeBadge.classList.add('admin-active');
     modeText.textContent = 'Admin Mode Active';
@@ -313,27 +377,51 @@ function setAdminMode(enabled) {
 
 function openNoticeModal(notice = null) {
   noticeForm.reset();
+  hideModalError();
+
   if (notice) {
     modalTitle.textContent = 'Edit Announcement';
     noticeId.value = notice.id;
-    noticeTitleInput.value = notice.title;
+    noticeTitleInput.value = unescapeHtml(notice.title);
     noticeCategorySelect.value = notice.category;
     noticeUrgentCheck.checked = Boolean(notice.isUrgent);
-    noticeDescInput.value = notice.description;
+    noticeDescInput.value = unescapeHtml(notice.description);
   } else {
     modalTitle.textContent = 'Post New Announcement';
     noticeId.value = '';
   }
+
   noticeModal.classList.remove('hidden');
   noticeTitleInput.focus();
 }
 
 function closeNoticeModal() {
   noticeModal.classList.add('hidden');
+  hideModalError();
+}
+
+function showModalError(msg) {
+  modalErrorAlert.textContent = msg;
+  modalErrorAlert.classList.remove('hidden');
+}
+
+function hideModalError() {
+  modalErrorAlert.textContent = '';
+  modalErrorAlert.classList.add('hidden');
+}
+
+function showPasswordError(msg) {
+  passwordErrorAlert.textContent = msg;
+  passwordErrorAlert.classList.remove('hidden');
+}
+
+function hidePasswordError() {
+  passwordErrorAlert.textContent = '';
+  passwordErrorAlert.classList.add('hidden');
 }
 
 // ==========================================
-// Helper Utility Functions
+// Helper Utility Functions (XSS Protection)
 // ==========================================
 
 function getCategoryIcon(category) {
@@ -362,10 +450,21 @@ function formatDate(isoString) {
 }
 
 function escapeHtml(str) {
+  if (typeof str !== 'string') return '';
   return str
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
+}
+
+function unescapeHtml(str) {
+  if (typeof str !== 'string') return '';
+  return str
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&amp;/g, '&');
 }

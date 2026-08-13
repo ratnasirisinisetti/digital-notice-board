@@ -99,6 +99,9 @@
         <button class="close-btn" id="closeModalBtn">&times;</button>
       </div>
 
+      <!-- Alert Box for Modal Validation -->
+      <div class="alert-box alert-danger hidden" id="modalErrorAlert"></div>
+
       <form id="noticeForm">
         <input type="hidden" id="noticeId">
 
@@ -146,6 +149,10 @@
         <h2>Admin Authentication</h2>
         <button class="close-btn" id="closePasswordModalBtn">&times;</button>
       </div>
+
+      <!-- Alert Box for Password Modal -->
+      <div class="alert-box alert-danger hidden" id="passwordErrorAlert"></div>
+
       <form id="passwordForm">
         <div class="form-group">
           <label for="adminPasswordInput">Enter Admin Passcode</label>
@@ -154,7 +161,7 @@
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" id="cancelPasswordBtn">Cancel</button>
-          <button type="submit" class="btn btn-primary">Verify & Unlock</button>
+          <button type="submit" class="btn btn-primary" id="verifyPasswordBtn">Verify & Unlock</button>
         </div>
       </form>
     </div>
